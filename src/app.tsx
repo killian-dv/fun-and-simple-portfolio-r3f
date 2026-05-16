@@ -10,6 +10,7 @@ export const App = () => {
         far: 2000,
         position: [-3, 1.5, 4],
       }}
+      className="r3f"
     >
       <Experience />
     </Canvas>
