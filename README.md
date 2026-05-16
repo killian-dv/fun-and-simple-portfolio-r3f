@@ -1,80 +1,87 @@
-# Post-Processing with R3F — Three.js Journey
+# Fun and Simple Portfolio with R3F — Three.js Journey
 
-Quick recap of what I learned in the **Post-Processing** lesson from [Three.js Journey](https://threejsjourney.com/) by Bruno Simon, implemented with **React Three Fiber**.
-
-Post-processing applies full-screen shader passes *after* the scene is rendered, so you can add bloom, color grading, distortion, and other cinematic effects without changing the underlying geometry.
+Quick recap of what I learned in the **Fun and Simple Portfolio with R3F** lesson from [Three.js Journey](https://threejsjourney.com/) by Bruno Simon, implemented with **React Three Fiber**.
 
 ## What this project covers
 
-This project is a small scene used to practice the post-processing pipeline in R3F: built-in effects from `@react-three/postprocessing`, composing passes, blend modes, tone mapping, and a custom effect written with GLSL.
+This project is a small 3D portfolio scene built with R3F and **Drei** helpers: loading a GLTF model, embedding real web content on the screen, and polishing the presentation with lighting, shadows, and controls.
 
-- **`EffectComposer`** from `@react-three/postprocessing` to run a chain of passes on the rendered frame.
-- **Built-in effects** (explored in code, some commented out): `Vignette`, `Noise`, `Bloom`, and `ToneMapping`.
-- **`BlendFunction`** from `postprocessing` to control how each pass is composited onto the previous result.
-- **Custom effect** by extending `Effect` from `postprocessing` with a fragment shader (`mainUv`, `mainImage`).
-- **Uniforms and `update()`** to animate shader values over time (wave offset for the drunk distortion).
-- **`leva`** for live tweaking of effect parameters (`frequency`, `amplitude`).
-- **`r3f-perf`** to monitor performance while stacking effects.
+- **`useGLTF`** to load the MacBook model from the course resources.
+- **`Environment`** for image-based lighting (`preset="city"`).
+- **`PresentationControls`** for drag-to-rotate interaction with damping and snap.
+- **`Float`** for subtle idle motion on the laptop group.
+- **`rectAreaLight`** to simulate light coming from the screen.
+- **`Html`** with `transform` to map an `<iframe>` onto the laptop display.
+- **`Text`** with a custom `.woff` font for a 3D name label.
+- **`ContactShadows`** for a grounded contact shadow under the model.
+- **Canvas `className` + CSS** (`touch-action: none`) so touch gestures work correctly on mobile.
 
 ## What I built
 
-- A simple lit scene (sphere, cube, ground plane) with shadows and `OrbitControls`.
-- An **`EffectComposer`** wrapping the scene output and applying effects in order.
-- A **custom “drunk” effect** (`DrunkEffect` + `Drunk` component) that:
-  - Distorts UVs with a sine wave in `mainUv` (`frequency`, `amplitude`, animated `offset`).
-  - Tints the image in `mainImage` (greenish output color while preserving alpha).
-  - Uses **`BlendFunction.DARKEN`** so the pass blends with the scene in a controlled way.
-- **`ToneMapping`** with `ToneMappingMode.ACES_FILMIC` at the end of the pipeline for filmic color response.
-- **Leva controls** to adjust drunk effect `frequency` and `amplitude` at runtime.
-
-Commented-out passes in `experience.tsx` show where **Vignette**, **Noise** (with `premultiply` and `SOFT_LIGHT` blend), and **Bloom** (`luminanceThreshold`, `mipmapBlur`) fit into the same composer when enabled.
+- A full-screen **R3F `Canvas`** with a perspective camera (`fov: 45`, positioned to frame the laptop).
+- A dark **background color** (`#241a1a`) to keep focus on the model.
+- A **MacBook GLTF** loaded via `useGLTF`, slightly lowered on the Y axis.
+- **`PresentationControls`** wrapping the laptop:
+  - `global` rotation limits (`rotation`, `polar`, `azimuth`).
+  - `damping={0.1}` and `snap` for smooth, satisfying interaction.
+- A **`Float`** group with `rotationIntensity={0.4}` for gentle movement.
+- A **`rectAreaLight`** above the screen area to brighten the display realistically.
+- An **`Html`** overlay on the laptop screen:
+  - `transform` + `distanceFactor` so the DOM scales with the 3D view.
+  - `wrapperClass="html-content"` for iframe styling in CSS.
+  - An **`<iframe>`** pointing to my portfolio site.
+- **`Text`** (“Killian David”) using the Bangers font, positioned beside the laptop.
+- **`ContactShadows`** under the model (`opacity`, `scale`, `blur` tuned for a soft ground shadow).
 
 ## What I learned
 
-### 1) Why post-processing exists
+### 1) Why a 3D portfolio wrapper
 
-- By default, Three.js draws the scene straight to the screen.
-- With post-processing, the renderer first draws the scene into an **off-screen render target** (a texture), then runs one or more **full-screen passes** that read that texture and write a new result.
-- Each pass is typically a **plane facing the camera** with a fragment shader—cheap to run, powerful for look development.
+- A portfolio is often your most important project—it should show what you can build.
+- If you already have an HTML/CSS portfolio, you can **reuse it** inside a 3D scene instead of rebuilding everything in WebGL.
+- A laptop model + embedded page is a memorable way to present projects without abandoning familiar web tech.
 
-### 2) The effect pipeline and `EffectComposer`
+### 2) Finding and loading a model
 
-- Passes run **in order**: the output of pass *n* becomes the input of pass *n + 1*.
-- **`EffectComposer`** (from `postprocessing`, exposed in R3F via `@react-three/postprocessing`) manages render targets and swaps buffers between passes.
-- In R3F, you wrap effects as children of `<EffectComposer>`; the library hooks into the render loop automatically.
+- Free models ready for R3F are listed on [PMNDRS Market](https://market.pmnd.rs/) (e.g. the MacBook model).
+- **`useGLTF(url)`** loads the file and gives a scene you can render with `<primitive object={computer.scene} />`.
+- If the market is unavailable, the course provides a fallback URL:  
+  `https://threejs-journey.com/resources/models/macbook_model.gltf`
 
-### 3) Built-in effects vs custom effects
+### 3) Scene mood and lighting
 
-- **`postprocessing`** ships many ready-made effects (bloom, noise, vignette, depth of field, etc.).
-- **`@react-three/postprocessing`** exposes them as React components with props matching the underlying effect API.
-- For anything bespoke, you subclass **`Effect`**, pass a **fragment shader**, and register **uniforms** in the constructor.
+- A **`color`** attached to `"background"` sets the canvas clear color and sets the tone of the experience.
+- **`Environment`** adds realistic reflections and ambient light from an HDR preset without hand-placing many lights.
+- A **`rectAreaLight`** near the screen mimics emissive light from the display and sells the “lit screen” look.
 
-### 4) Custom shader hooks: `mainUv` and `mainImage`
+### 4) Presentation controls
 
-- In a custom `Effect` fragment shader, **`mainUv(inout vec2 uv)`** runs before the input color is sampled—you can distort, scale, or offset coordinates (here: vertical sine wobble for a “drunk” look).
-- **`mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)`** receives the sampled color and writes the final pixel—useful for tints, grading, or stylized color shifts.
-- Uniforms declared in the shader must be added to the `uniforms` map in the effect constructor (`Uniform` from Three.js).
+- **`PresentationControls`** (Drei) lets users rotate the model with pointer or touch—more engaging than static `OrbitControls` for a product-style showcase.
+- **`polar`** and **`azimuth`** clamp how far the user can orbit.
+- **`damping`** controls how snappy the motion feels (lower = slower settle).
+- **`snap`** returns the model to a rest pose when interaction ends.
 
-### 5) Animating effects with `update()`
+### 5) Embedding HTML in the 3D world
 
-- Override **`update(renderer, inputBuffer, deltaTime)`** on your `Effect` subclass to change uniforms every frame.
-- Here, **`offset`** increases with `deltaTime` so the sine wave scrolls and the distortion feels alive without touching React state.
+- Drei’s **`Html`** component can render DOM (including **`<iframe>`**) inside the scene.
+- With **`transform`**, the HTML plane follows the laptop screen’s position and rotation in 3D.
+- **`distanceFactor`** scales the DOM so it stays readable as the camera moves.
+- **`wrapperClass`** links to regular CSS (iframe size, border-radius, etc.) in `index.css`.
 
-### 6) Blend functions and tone mapping
+### 6) Typography and polish
 
-- Each effect can specify a **`blendFunction`** (e.g. `DARKEN`, `SOFT_LIGHT`, `NORMAL`) that defines how its output is merged with the previous pass—same idea as layer blend modes in image editors.
-- **Tone mapping** is often placed **last** in the chain so HDR-style values are compressed to displayable range with a chosen curve (e.g. ACES Filmic).
+- **`Text`** renders 3D type with a loaded font file (`font`, `fontSize`, `maxWidth`, `textAlign`).
+- **`ContactShadows`** adds a cheap, convincing shadow on an invisible ground plane—no custom shadow setup required.
+- **`Float`** adds light procedural motion so the scene feels alive without complex animation code.
 
-### 7) Wiring a custom effect in R3F
+### 7) Mobile and touch
 
-- Instantiate the effect class (`new DrunkEffect({ ... })`) and expose it with **`<primitive object={effect} />`** so it participates in the R3F tree like any other Three.js object.
-- Pass props (`frequency`, `amplitude`, `blendFunction`) from React; for a production setup you might sync prop changes into uniforms or memoize the effect instance—here the focus is on learning the pipeline.
+- On recent Drei versions, set **`className`** on `<Canvas>` and use **`touch-action: none`** in CSS on that class so drag gestures on the model are not swallowed by the browser’s default touch behavior.
 
-### 8) Performance awareness
+### 8) Tweaking values
 
-- Every extra pass costs GPU time (extra full-screen draws and texture reads).
-- **`r3f-perf`** helps spot regressions when enabling bloom, multisampling, or several stacked effects.
-- Simpler effects (single shader, few uniforms) are cheaper than multi-pass effects like bloom with blur pyramids.
+- Placement of lights, iframe, text, and controls is mostly **trial and error**.
+- The lesson recommends a debug UI like **Leva** when building your own variant; this repo uses fixed values from the course.
 
 ## Run the project
 
